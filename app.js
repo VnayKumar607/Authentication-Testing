@@ -13,6 +13,7 @@ const passportLocalMongoose = require("passport-local-mongoose");
 //Level-6 requiring Google strategy
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const findOrCreate = require("mongoose-findorcreate");
+const FacebookStrategy = require("passport-facebook").Strategy;
 
 const app = express();
 
@@ -39,7 +40,8 @@ const userSchema = new mongoose.Schema({
     email: String,
     password: String,
     googleId: String,
-    secret: String
+    secret: String,
+    facebookId: String
 });
 
 userSchema.plugin(passportLocalMongoose);
@@ -79,6 +81,19 @@ passport.use(new GoogleStrategy({
   }
 ));
 
+passport.use(new FacebookStrategy({
+    clientID: process.env.FACEBOOK_APP_ID,
+    clientSecret: process.env.FACEBOOK_APP_SECRET,
+    callbackURL: "http://localhost:3000/auth/facebook/secrets"
+  },
+  function(accessToken, refreshToken, profile, cb) {
+    console.log(profile);
+    User.findOrCreate({ facebookId: profile.id }, function (err, user) {
+      return cb(err, user);
+    });
+  }
+));
+
 app.get("/" , function(req,res){
     res.render("home");
 });
@@ -91,6 +106,18 @@ app.get("/auth/google/secrets",
   passport.authenticate('google', { failureRedirect: "/login" }),
   function(req, res) {
     // Successful authentication, redirect home.
+    res.redirect("/secrets");
+});
+
+//Adding get routes for facebook authentication
+app.get("/auth/facebook",
+  passport.authenticate('facebook')
+);
+
+app.get("/auth/facebook/secrets",
+  passport.authenticate('facebook', { failureRedirect: "/login" }),
+  function(req, res) {
+    // Successful authentication, redirect page.
     res.redirect("/secrets");
 });
 
@@ -149,7 +176,7 @@ app.post("/login", function(req,res){
     
     const user = new User({
         username: req.body.username,
-        passport: req.body.password
+        password: req.body.password
     });
 
     req.logIn(user, function(err){
@@ -168,7 +195,7 @@ app.get("/submit" , function(req,res){
     if(req.isAuthenticated()){
         res.render("submit");
     }else{
-        res.redirect("login");
+        res.redirect("/login");
     }
 });
 
